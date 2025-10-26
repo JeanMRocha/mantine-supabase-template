@@ -1,4 +1,4 @@
-import { supabaseClient } from '@supabase/supabaseClient';
+import { supabaseClient } from '@sb/supabaseClient';
 
 /**
  * 🌿 loggerService

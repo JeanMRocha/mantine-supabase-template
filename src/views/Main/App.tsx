@@ -1,49 +1,23 @@
-import { MantineProvider, ColorSchemeProvider } from '@mantine/core';
-import { Notifications } from '@mantine/notifications';
+// src/views/Main/App.tsx
+import { Navigate } from 'react-router-dom';
 import { useStore } from '@nanostores/react';
-import { $tema, alternarTema } from '@global/themeStore';
-import { Outlet } from 'react-router-dom';
-import { ErrorBoundary } from '@components/errors/ErrorBoundary';
+import { $currUser } from '@global/user';
+import { LoaderInline } from '@components/loaders';
 
 /**
- * 🌿 App
- * Ponto de entrada principal do PerfilSolo.
- * Inclui o ErrorBoundary global e o tema dinâmico (light/dark).
+ * 🌱 App (index route)
+ * - Enquanto restaura a sessão: mostra um loader.
+ * - Se logado: manda para /dashboard.
+ * - Se não logado: ProtectedPath já redireciona para /auth.
  */
 export default function App() {
-  const tema = useStore($tema);
+  const user = useStore($currUser);
 
-  return (
-    <ErrorBoundary>
-      <ColorSchemeProvider colorScheme={tema} toggleColorScheme={alternarTema}>
-        <MantineProvider
-          withGlobalStyles
-          withNormalizeCSS
-          theme={{
-            colorScheme: tema,
-            primaryColor: 'green',
-            fontFamily: 'Inter, sans-serif',
-            headings: { fontWeight: 700 },
-            colors: {
-              green: [
-                '#f0fdf4',
-                '#dcfce7',
-                '#bbf7d0',
-                '#86efac',
-                '#4ade80',
-                '#22c55e',
-                '#16a34a',
-                '#15803d',
-                '#166534',
-                '#14532d',
-              ],
-            },
-          }}
-        >
-          <Notifications position="top-right" />
-          <Outlet />
-        </MantineProvider>
-      </ColorSchemeProvider>
-    </ErrorBoundary>
-  );
+  // user === undefined => ainda restaurando sessão
+  if (user === undefined) {
+    return <LoaderInline message="Restaurando sessão..." />;
+  }
+
+  // Autenticado: seguir para o dashboard
+  return <Navigate to="/dashboard" replace />;
 }

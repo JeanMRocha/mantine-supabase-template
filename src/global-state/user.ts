@@ -1,36 +1,63 @@
-import { User } from '@supabase/supabase-js';
-import { atom } from 'nanostores';
-import { supabaseClient } from '../supabase/supabaseClient';
+import type { User } from '@supabase/supabase-js';
+import { atom, onMount } from 'nanostores';
 import { notifications } from '@mantine/notifications';
 
-// 🧠 inicia como "undefined" para diferenciar de null (sem usuário)
+// ⚠️ Import RELATIVO para eliminar dúvida de alias neste momento
+import { supabaseClient } from '@sb/supabaseClient';
+
+/**
+ * Estado global do usuário
+ * - undefined: ainda determinando
+ * - null: sem sessão
+ * - User: logado
+ */
 export const $currUser = atom<User | null | undefined>(undefined);
 
-// 🔹 restaura sessão imediatamente ao carregar a aplicação
-(async () => {
-  const { data, error } = await supabaseClient.auth.getSession();
+/**
+ * Inicializa assim que houver pelo menos um subscriber do store.
+ * - Restaura sessão
+ * - Assina eventos de auth
+ * - Faz cleanup no unmount
+ */
+onMount($currUser, () => {
+  let unsubscribe: (() => void) | undefined;
 
-  if (!error) {
-    $currUser.set(data.session?.user ?? null);
-  }
+  (async () => {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+      console.warn('[auth] getSession error:', error.message);
+      $currUser.set(null);
+    } else {
+      $currUser.set(data.session?.user ?? null);
+    }
 
-  // opcional: log visual
-  notifications.show({
-    title: 'Sessão restaurada',
-    message: data.session
-      ? `Usuário ativo: ${data.session.user.email}`
-      : 'Nenhum usuário ativo',
-    color: data.session ? 'green' : 'gray',
-  });
-})();
+    // Log visual opcional
+    notifications.show({
+      title: 'Sessão',
+      message: data?.session
+        ? `Usuário: ${data.session.user.email}`
+        : 'Nenhum usuário ativo',
+      color: data?.session ? 'green' : 'gray',
+    });
 
-// 🔹 escuta mudanças de autenticação em tempo real
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  $currUser.set(session?.user ?? null);
+    // Escuta mudanças de autenticação
+    const { data: sub } = supabaseClient.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('[auth] onAuthStateChange:', event);
+        $currUser.set(session?.user ?? null);
+      },
+    );
 
-  notifications.show({
-    title: 'Autenticação atualizada',
-    message: `Evento: ${event}`,
-    color: 'blue',
-  });
+    // Unsubscribe no dispose do store
+    unsubscribe = () => sub.subscription.unsubscribe();
+  })();
+
+  return () => {
+    unsubscribe?.();
+  };
 });
+
+/** Helper opcional para signout centralizado */
+export async function signOut() {
+  await supabaseClient.auth.signOut();
+}

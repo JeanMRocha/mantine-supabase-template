@@ -26,7 +26,7 @@ export default defineConfig({
       '@components': path.resolve(__dirname, 'src/components'),
       '@views': path.resolve(__dirname, 'src/views'),
       '@services': path.resolve(__dirname, 'src/services'),
-      //'@supabase': path.resolve(__dirname, 'src/supabase'),
+      '@sb': path.resolve(__dirname, 'src/supabase'),
     },
   },
   define: {

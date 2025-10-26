@@ -15,8 +15,8 @@ import { IconCircleKey } from '@tabler/icons-react';
 import { Navigate } from 'react-router-dom';
 
 // ✅ Imports relativos (sem depender de alias @supabase)
-import { supabaseClient } from '../../supabase/supabaseClient';
-import { useUser } from '../../supabase/loader';
+import { supabaseClient } from '@sb/supabaseClient';
+import { useUser } from '@sb/loader';
 
 // ✅ export default para funcionar com React.lazy no router
 export default function Authentication() {

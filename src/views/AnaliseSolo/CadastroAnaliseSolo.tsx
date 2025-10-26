@@ -1,187 +1,148 @@
 import {
   Card,
   Group,
-  Text,
-  Select,
-  NumberInput,
-  Button,
-  Divider,
+  Title,
+  Switch,
+  Stack,
   SimpleGrid,
+  Divider,
 } from '@mantine/core';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { notifications } from '@mantine/notifications';
 import { supabaseClient } from '../../supabase/supabaseClient';
 import { analisesMock, AnaliseSolo } from '../../data/analisesMock';
-import RecomendacaoCard from './RecomendacaoCard';
-import { GraficoAnalise } from './GraficoAnalise';
-import { notifications } from '@mantine/notifications';
+import PhCard from './PhCard';
+import NutrientCard from './NutrientCard';
 
-/**
- * 🧠 CadastroAnaliseSolo
- * Tela principal de cadastro e visualização da análise de solo.
- * Mostra campos dinâmicos, diagnóstico e gráfico interativo.
- */
+const DEFAULT_UNITS: Record<string, string> = {
+  P: 'mg/dm³',
+  K: 'mg/dm³',
+  Ca: 'cmolc/dm³',
+  Mg: 'cmolc/dm³',
+  MO: '%',
+};
+
 export default function CadastroAnaliseSolo() {
   const [analises, setAnalises] = useState<AnaliseSolo[]>(analisesMock);
   const [analise, setAnalise] = useState<AnaliseSolo>(analisesMock[0]);
-  const [nutrientes, setNutrientes] = useState<Record<string, number>>(
+  const [values, setValues] = useState<Record<string, number>>(
     analisesMock[0].nutrientes,
   );
-  const [nutrienteSelecionado, setNutrienteSelecionado] = useState<
-    string | null
-  >(null);
 
-  /**
-   * 🔹 Carrega as análises reais do Supabase se disponível.
-   * Caso contrário, mantém os dados mockados (offline-safe).
-   */
+  // quais cards mostrar
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({
+    pH: true,
+    P: true,
+    K: true,
+    Ca: true,
+    Mg: true,
+    MO: true,
+  });
+
   useEffect(() => {
-    async function carregarDados() {
+    (async () => {
       try {
-        const { data, error } = await supabaseClient
-          .from('analises_solo')
-          .select('*');
+        const { data } = await supabaseClient.from('analises_solo').select('*');
+        if (data && data.length) {
+          const adaptado = data.map((d: any, i: number) => ({
+            id: d.id || i,
+            cultura: d.cultura,
+            variedade: d.variedade,
+            estado: d.estado,
+            cidade: d.cidade,
+            estagio: d.estagio,
+            idade: d.idade,
+            nutrientes: d.nutrientes,
+            faixaIdeal: d.faixa_ideal,
+            observacoes: d.observacoes,
+          })) as AnaliseSolo[];
 
-        if (error || !data || data.length === 0) {
-          console.warn(
-            'Usando dados mockados (sem conexão ao Supabase ou tabela vazia).',
-          );
-          return;
+          setAnalises(adaptado);
+          setAnalise(adaptado[0]);
+          setValues(adaptado[0].nutrientes);
+          notifications.show({
+            title: 'Dados carregados',
+            message: 'Análises reais carregadas do Supabase.',
+            color: 'green',
+          });
         }
-
-        // Converte para o formato usado no app
-        const adaptado: AnaliseSolo[] = data.map((d: any, i: number) => ({
-          id: d.id ?? i,
-          cultura: d.cultura,
-          variedade: d.variedade ?? 'Padrão',
-          estado: d.estado,
-          cidade: d.cidade,
-          estagio: d.estagio,
-          idade: d.idade,
-          nutrientes: d.nutrientes ?? {},
-          faixaIdeal: d.faixa_ideal ?? {},
-          observacoes: d.observacoes ?? '',
-        }));
-
-        setAnalises(adaptado);
-        setAnalise(adaptado[0]);
-        setNutrientes(adaptado[0].nutrientes);
-
-        notifications.show({
-          title: 'Dados carregados',
-          message: 'Análises reais carregadas do Supabase.',
-          color: 'green',
-        });
-      } catch (err) {
-        console.error(err);
-        notifications.show({
-          title: 'Falha na conexão',
-          message: 'Usando dados de exemplo (modo offline).',
-          color: 'orange',
-        });
+      } catch {
+        // segue com mock
       }
-    }
-
-    carregarDados();
+    })();
   }, []);
 
-  /** 🔸 Atualiza o valor de um nutriente */
-  function handleNutrienteChange(chave: string, valor: number) {
-    setNutrientes((prev) => ({ ...prev, [chave]: valor }));
-  }
+  const faixa = analise.faixaIdeal;
 
-  /** 🔸 Atualiza o gráfico e o card de recomendação */
-  function atualizarAnalise() {
-    // Se quiser, aqui pode persistir no supabase depois
-    notifications.show({
-      title: 'Análise atualizada',
-      message: 'Os valores foram recalculados com sucesso.',
-      color: 'teal',
-    });
-  }
-
-  const culturas = Array.from(new Set(analises.map((a) => a.cultura)));
-  const variedades = analises
-    .filter((a) => a.cultura === analise.cultura)
-    .map((a) => a.variedade || 'Padrão');
+  const toggle = (k: string, v: boolean) =>
+    setEnabled((p) => ({ ...p, [k]: v }));
+  const setVal = (k: string, v: number) =>
+    setValues((prev) => ({ ...prev, [k]: v }));
 
   return (
-    <Card shadow="sm" radius="md" withBorder p="xl">
-      <Text fw={600} size="xl" mb="lg" c="green.8">
-        Cadastro e Interpretação de Análise de Solo
-      </Text>
+    <Stack>
+      {/* Paleta de nutrientes (toggle) */}
+      <Card withBorder radius="md" p="md">
+        <Group justify="space-between">
+          <Title order={4} c="green.7">
+            Selecionar parâmetros
+          </Title>
+        </Group>
+        <Group mt="xs" gap="md" wrap="wrap">
+          {['pH', 'P', 'K', 'Ca', 'Mg', 'MO'].map((k) => (
+            <Switch
+              key={k}
+              checked={!!enabled[k]}
+              onChange={(e) => toggle(k, e.currentTarget.checked)}
+              label={k}
+              color="green"
+            />
+          ))}
+        </Group>
+      </Card>
 
-      {/* SELEÇÃO DE CULTURA */}
-      <Group grow mb="md">
-        <Select
-          label="Cultura"
-          placeholder="Selecione"
-          value={analise.cultura}
-          data={culturas}
-          onChange={(val) => {
-            if (!val) return;
-            const nova = analises.find((a) => a.cultura === val);
-            if (nova) {
-              setAnalise(nova);
-              setNutrientes(nova.nutrientes);
-              setNutrienteSelecionado(null);
-            }
-          }}
-          searchable
-          nothingFoundMessage="Nenhuma cultura"
-        />
+      <Divider label="Interpretação" labelPosition="center" />
 
-        <Select
-          label="Variedade"
-          placeholder="Selecione"
-          value={analise.variedade}
-          data={variedades.length ? variedades : ['Padrão']}
-          onChange={(val) =>
-            setAnalise({ ...analise, variedade: val || 'Padrão' })
-          }
-          searchable
-          nothingFoundMessage="Sem variedades"
-        />
-      </Group>
-
-      {/* CAMPOS DE NUTRIENTES */}
-      <Group grow>
-        {Object.keys(nutrientes).map((chave) => (
-          <NumberInput
-            key={chave}
-            label={chave}
-            value={nutrientes[chave]}
-            step={0.1}
-            decimalScale={2}
-            onChange={(val) => handleNutrienteChange(chave, Number(val) || 0)}
+      {/* Grade de cards */}
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+        {enabled['pH'] && (
+          <PhCard
+            value={values['pH'] ?? 7}
+            onChange={(v) => setVal('pH', v)}
+            ideal={(faixa['pH'] as [number, number]) ?? [5.5, 6.5]}
           />
-        ))}
-      </Group>
+        )}
 
-      <Button mt="lg" color="green" onClick={atualizarAnalise}>
-        Atualizar Gráfico
-      </Button>
+        {(['P', 'K', 'Ca', 'Mg', 'MO'] as const).map((n) => {
+          if (!enabled[n]) return null;
+          const unit = DEFAULT_UNITS[n] ?? 'mg/dm³';
+          const ideal = (faixa[n] as [number, number]) ?? [0, 0];
 
-      {/* INTERPRETAÇÃO COMPLETA */}
-      <Divider my="xl" label="Interpretação completa" labelPosition="center" />
-
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
-        {/* ✅ RecomendacaoCard NÃO recebe 'selecionado' no seu arquivo atual */}
-        <RecomendacaoCard analise={{ ...analise, nutrientes }} />
-
-        {/* GraficoAnalise recebe o highlight (opcional) */}
-        <GraficoAnalise
-          analise={{ ...analise, nutrientes }}
-          onSelectNutriente={(n) => setNutrienteSelecionado(n)}
-          selecionado={nutrienteSelecionado ?? undefined}
-        />
+          return (
+            <NutrientCard
+              key={n}
+              name={n}
+              unit={unit}
+              value={values[n] ?? 0}
+              onChange={(v) => setVal(n, v)}
+              ideal={ideal}
+              // Escala total = 0 .. 2x do idealMax, para dar “respiro”
+              scale={[0, Math.max(ideal[1] * 2, 1)]}
+              // paleta cinza; podemos substituir por gradiente próprio depois
+              palette={(i, tot) =>
+                i / tot < 0.5
+                  ? 'var(--mantine-color-dark-5)'
+                  : 'var(--mantine-color-dark-4)'
+              }
+              info={{
+                low: `${n} abaixo do ideal — considerar correção.`,
+                high: `${n} elevado — risco de antagonismo.`,
+                ideal: `${n} em faixa adequada.`,
+              }}
+            />
+          );
+        })}
       </SimpleGrid>
-
-      <Divider my="xl" label="Recomendações gerais" labelPosition="center" />
-
-      <Text size="sm" c="dimmed">
-        {analise.observacoes ||
-          'Insira valores ou selecione uma cultura para gerar recomendações.'}
-      </Text>
-    </Card>
+    </Stack>
   );
 }

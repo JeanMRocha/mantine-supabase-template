@@ -1,7 +1,5 @@
 import {
   AppShell,
-  Navbar,
-  Header,
   Text,
   NavLink,
   Group,
@@ -16,9 +14,7 @@ import {
   IconSettings,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
-import { CadastroAnaliseSolo } from '../AnaliseSolo/CadastroAnaliseSolo';
-import PageHeader from '../../components/PageHeader';
-import { LoaderInline } from '@components/loaders';
+import CadastroAnaliseSolo from './CadastroAnaliseSolo'; // ✅ default import correto
 
 /**
  * 🌱 DashboardAnaliseSolo

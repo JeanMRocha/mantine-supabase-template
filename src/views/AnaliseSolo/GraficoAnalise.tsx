@@ -1,75 +1,106 @@
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  Tooltip,
-  Cell,
-} from 'recharts';
-import { useState } from 'react';
+// src/views/AnaliseSolo/GraficoAnalise.tsx
+import { Box, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { normalizar200, corDoStatus, FaixaIdeal } from './soilConfig';
 
-interface GraficoAnaliseProps {
-  analise: {
-    nutrientes: Record<string, number>;
-    faixaIdeal: Record<string, [number, number]>;
-  };
-  onSelectNutriente?: (nutriente: string) => void;
-}
+type Props = {
+  valores: Record<string, number>;
+  faixas: FaixaIdeal;
+  onSelectNutriente?: (id: string) => void;
+};
 
-export function GraficoAnalise({
-  analise,
-  onSelectNutriente,
-}: GraficoAnaliseProps) {
-  const [selecionado, setSelecionado] = useState<string | null>(null);
-
-  const data = Object.keys(analise.nutrientes).map((key) => {
-    const valor = analise.nutrientes[key];
-    const [min, max] = analise.faixaIdeal[key];
-    return { nutriente: key, valor, min, max };
-  });
-
-  const getColor = (valor: number, min: number, max: number, ativo = false) => {
-    if (ativo) return '#0ea5e9'; // azul destaque
-    if (valor < min) return '#ef4444'; // vermelho
-    if (valor > max) return '#9333ea'; // roxo
-    return '#22c55e'; // verde (ideal)
-  };
-
-  const handleClick = (nutriente: string) => {
-    setSelecionado((prev) => (prev === nutriente ? null : nutriente));
-    if (onSelectNutriente) onSelectNutriente(nutriente);
-  };
+function NutrientBar({
+  id,
+  valor,
+  faixa,
+  onClick,
+}: {
+  id: string;
+  valor: number;
+  faixa: [number, number];
+  onClick?: () => void;
+}) {
+  const pct = normalizar200(valor, faixa); // 0–200%
+  const [min, max] = faixa;
+  const minPct = normalizar200(min, faixa);
+  const maxPct = normalizar200(max, faixa);
+  const color = corDoStatus(valor, faixa);
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data}>
-        <XAxis dataKey="nutriente" />
-        <Tooltip
-          cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-          contentStyle={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            border: '1px solid #e5e7eb',
-            padding: '6px 10px',
+    <Stack gap={4}>
+      <Group justify="space-between">
+        <Text fw={600}>{id}</Text>
+        <Text size="sm" c="dimmed">
+          {valor.toFixed(2)} (ideal {min}–{max})
+        </Text>
+      </Group>
+
+      <Box
+        onClick={onClick}
+        style={{
+          position: 'relative',
+          height: 14,
+          borderRadius: 8,
+          background:
+            'linear-gradient(90deg, rgba(120,120,120,.12) 0%, rgba(120,120,120,.12) 100%)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* sombra: faixa ideal em verde-claro */}
+        <Box
+          style={{
+            position: 'absolute',
+            insetBlock: 0,
+            left: `${Math.min(minPct, maxPct)}%`,
+            width: `${Math.abs(maxPct - minPct)}%`,
+            background: 'rgba(34,197,94,.25)',
           }}
         />
-        <Bar dataKey="valor" onClick={(d) => handleClick(d.nutriente)}>
-          {data.map((d, i) => (
-            <Cell
-              key={i}
-              cursor="pointer"
-              fill={getColor(
-                d.valor,
-                d.min,
-                d.max,
-                d.nutriente === selecionado,
-              )}
-              stroke={d.nutriente === selecionado ? '#0ea5e9' : 'none'}
-              strokeWidth={d.nutriente === selecionado ? 2 : 0}
-            />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+
+        {/* barra do valor atual */}
+        <Tooltip label={`${pct.toFixed(0)}% do alvo`}>
+          <Box
+            style={{
+              position: 'absolute',
+              insetBlock: 0,
+              left: 0,
+              width: `${pct}%`,
+              background:
+                color === 'red'
+                  ? 'rgba(239,68,68,0.9)'
+                  : color === 'blue'
+                    ? 'rgba(59,130,246,0.9)'
+                    : 'rgba(34,197,94,0.9)',
+            }}
+          />
+        </Tooltip>
+      </Box>
+    </Stack>
   );
 }
+
+export function GraficoAnalise({ valores, faixas, onSelectNutriente }: Props) {
+  const ids = Object.keys(valores);
+
+  return (
+    <Stack gap="md">
+      <Text fw={700}>Interpretação (0–200%)</Text>
+      <Stack gap="sm">
+        {ids.map((id) => (
+          <NutrientBar
+            key={id}
+            id={id}
+            valor={valores[id]}
+            faixa={faixas[id as keyof FaixaIdeal] ?? [0, 0]}
+            onClick={() => onSelectNutriente?.(id)}
+          />
+        ))}
+      </Stack>
+      <Text size="xs" c="dimmed">
+        Verde = dentro do ideal, Vermelho = abaixo, Azul = acima. A faixa
+        esverdeada representa o intervalo ideal para o parâmetro selecionado.
+      </Text>
+    </Stack>
+  );
+}
+
+export default GraficoAnalise;

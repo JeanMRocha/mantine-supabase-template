@@ -8,9 +8,10 @@ import { LoaderGlobal } from '@components/loaders';
 
 /**
  * 🌿 AppLayout
- * Layout raiz do PerfilSolo — gerencia tema dinâmico e exibe o loader global.
+ * Layout raiz do PerfilSolo — tema dinâmico + overlay de carregamento global.
+ * Mantém a UI simples e consistente. Sem Providers aqui.
  */
-export const AppLayout = () => {
+export default function AppLayout() {
   const tema = useStore($tema);
   const loading = useStore($loading);
 
@@ -22,7 +23,7 @@ export const AppLayout = () => {
           🌱 PerfilSolo
         </Title>
 
-        {/* Alternância de tema */}
+        {/* Alternar tema */}
         <ActionIcon
           variant="light"
           color="green"
@@ -42,7 +43,8 @@ export const AppLayout = () => {
             position: 'fixed',
             inset: 0,
             zIndex: 2000,
-            background: 'rgba(255, 255, 255, 0.85)',
+            background:
+              tema === 'light' ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.45)',
             backdropFilter: 'blur(4px)',
           }}
         >
@@ -50,10 +52,10 @@ export const AppLayout = () => {
         </Box>
       )}
 
-      {/* Conteúdo principal renderizado via rotas */}
+      {/* Conteúdo principal (rotas filhas) */}
       <Box flex={1}>
         <Outlet />
       </Box>
     </Stack>
   );
-};
+}

@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { ProtectedPath } from '@components/ProtectedPath';
+const Logout = lazy(() => import('@views/Auth/Logout'));
 import { LoaderGlobal } from '@components/loaders';
 
 // 🌿 Lazy loading dos módulos
@@ -113,6 +114,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LoaderGlobal message="Carregando login..." />}>
             <Authentication />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'logout',
+        element: (
+          <Suspense fallback={<LoaderGlobal message="Saindo..." />}>
+            <Logout />
           </Suspense>
         ),
       },
