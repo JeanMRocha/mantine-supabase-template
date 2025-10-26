@@ -1,85 +1,49 @@
-import { Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { spotlight } from '@mantine/spotlight';
+import { MantineProvider, ColorSchemeProvider } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import { useStore } from '@nanostores/react';
-import { $currUser } from '../../global-state/user';
-import { openTypedModal } from '../../mantine/modals/modals-utils';
-import { supabaseClient } from '../../supabase/supabaseClient';
+import { $tema, alternarTema } from '@global/themeStore';
+import { Outlet } from 'react-router-dom';
+import { ErrorBoundary } from '@components/errors/ErrorBoundary';
 
-function App() {
-  const user = useStore($currUser);
+/**
+ * 🌿 App
+ * Ponto de entrada principal do PerfilSolo.
+ * Inclui o ErrorBoundary global e o tema dinâmico (light/dark).
+ */
+export default function App() {
+  const tema = useStore($tema);
 
   return (
-    <Stack>
-      <Paper p="xl">
-        <Group>
-          <Paper
-            withBorder
-            shadow="lg"
-            p="md"
-            style={{
-              cursor: 'pointer',
-            }}
-            onClick={() => {
-              window.location.replace('https://supabase.com/');
-            }}
-          >
-            <Group>
-              <img
-                style={{
-                  width: '100px',
-                }}
-                src="https://seeklogo.com/images/S/supabase-logo-DCC676FFE2-seeklogo.com.png"
-              />
-              <Text size="xl" c="dimmed">
-                Built with supabase
-              </Text>
-            </Group>
-          </Paper>
-          <Stack>
-            <Badge variant="light">{user?.id}</Badge>
-
-            <Button
-              onClick={() => {
-                supabaseClient.auth.signOut();
-              }}
-            >
-              logout
-            </Button>
-          </Stack>
-          <Button
-            onClick={() => {
-              spotlight.open();
-            }}
-          >
-            Open spotlight
-          </Button>
-          <Button
-            onClick={() => {
-              notifications.show({
-                message: 'im a notif',
-              });
-            }}
-          >
-            Push notification
-          </Button>
-          <Button
-            onClick={() => {
-              openTypedModal({
-                modal: 'testName',
-                title: 'test name modal',
-                body: {
-                  modalBody: 'ojla',
-                },
-              });
-            }}
-          >
-            Open modal
-          </Button>
-        </Group>
-      </Paper>
-    </Stack>
+    <ErrorBoundary>
+      <ColorSchemeProvider colorScheme={tema} toggleColorScheme={alternarTema}>
+        <MantineProvider
+          withGlobalStyles
+          withNormalizeCSS
+          theme={{
+            colorScheme: tema,
+            primaryColor: 'green',
+            fontFamily: 'Inter, sans-serif',
+            headings: { fontWeight: 700 },
+            colors: {
+              green: [
+                '#f0fdf4',
+                '#dcfce7',
+                '#bbf7d0',
+                '#86efac',
+                '#4ade80',
+                '#22c55e',
+                '#16a34a',
+                '#15803d',
+                '#166534',
+                '#14532d',
+              ],
+            },
+          }}
+        >
+          <Notifications position="top-right" />
+          <Outlet />
+        </MantineProvider>
+      </ColorSchemeProvider>
+    </ErrorBoundary>
   );
 }
-
-export default App;
