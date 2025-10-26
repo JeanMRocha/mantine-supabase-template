@@ -1,18 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from './supabase';
 
-/**
- * 🌱 PerfilSolo – Supabase Client
- * Carrega variáveis do .env, cria cliente Supabase e
- * gera logs automáticos locais caso falhe.
- */
-
 const debug = (msg: string, data?: any) => {
   console.log(`[SupabaseClient] ${msg}`, data ?? '');
 };
 
-// 🔍 Diagnóstico inicial de ambiente
-debug('📦 Verificando variáveis de ambiente (import.meta.env)');
+// Debug do ambiente (visível no console do navegador)
+debug('📦 Verificando variáveis (import.meta.env)');
 debug('  VITE_SUPABASE_URL =', import.meta.env.VITE_SUPABASE_URL);
 debug(
   '  VITE_SUPABASE_ANON_KEY =',
@@ -25,18 +19,16 @@ try {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  // 🧩 Verificação robusta com mensagens claras
   if (!supabaseUrl || !supabaseKey) {
     const msg = '❌ Supabase URL ou KEY não configuradas no .env';
     debug(msg);
 
-    // tenta registrar log local antes de lançar erro
     import('@services/loggerLocal').then(({ registrarLogLocal }) => {
       registrarLogLocal({
         tipo: 'error',
         mensagem: msg,
         origem: 'supabaseClient.ts',
-        stack: 'Variáveis .env não detectadas',
+        stack: 'Variáveis .env não detectadas em import.meta.env',
         detalhes: {
           arquivo: 'supabaseClient.ts',
           envDetectado: {
@@ -47,11 +39,9 @@ try {
       });
     });
 
-    // lança erro tratado, que será capturado pelo ErrorBoundary
     throw new Error(msg);
   }
 
-  // ✅ Cria client Supabase real
   supabaseClient = createClient<Database>(supabaseUrl, supabaseKey, {
     auth: {
       autoRefreshToken: true,
@@ -64,7 +54,6 @@ try {
 } catch (err: any) {
   debug('🔥 Erro ao inicializar SupabaseClient', err);
 
-  // 🔸 Garante registro local mesmo em falha crítica
   import('@services/loggerLocal').then(({ registrarLogLocal }) => {
     registrarLogLocal({
       tipo: 'critical',
@@ -82,7 +71,7 @@ try {
     });
   });
 
-  // 🔧 Client mock para evitar travamento da aplicação
+  // Modo mock para não quebrar o app
   supabaseClient = {
     auth: {
       signInWithPassword: async () => {

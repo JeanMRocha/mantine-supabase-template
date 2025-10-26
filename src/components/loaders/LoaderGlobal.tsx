@@ -1,54 +1,36 @@
 import {
   Center,
+  Stack,
   Loader,
   Text,
-  Stack,
-  Transition,
   useMantineTheme,
+  Card,
 } from '@mantine/core';
-import { motion } from 'framer-motion';
 
-/**
- * 🌱 LoaderGlobal
- * Loader elegante de tela cheia para uso em fallback de rotas e carregamentos principais.
- */
-export default function LoaderGlobal({ message }: { message?: string }) {
+type Props = { message?: string };
+
+export default function LoaderGlobal({ message = 'Carregando...' }: Props) {
   const theme = useMantineTheme();
 
   return (
     <Center
+      h="100vh"
+      w="100vw"
       style={{
-        height: '100vh',
-        backgroundColor: theme.colorScheme === 'dark' ? '#0d1b0f' : '#f8fff9',
-        transition: 'background-color 0.3s ease',
+        background:
+          theme.colorScheme === 'dark'
+            ? theme.colors.dark[7]
+            : theme.colors.gray[0],
       }}
     >
-      <Transition
-        mounted
-        transition="fade"
-        duration={400}
-        timingFunction="ease"
-      >
-        {(styles) => (
-          <Stack align="center" spacing="xs" style={styles}>
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-            >
-              <Loader size="lg" color="green" />
-            </motion.div>
-            {message && (
-              <Text
-                c={theme.colorScheme === 'dark' ? 'green.3' : 'green.7'}
-                fw={500}
-                fz="md"
-              >
-                {message}
-              </Text>
-            )}
-          </Stack>
-        )}
-      </Transition>
+      <Card withBorder radius="md" p="lg" shadow="sm">
+        <Stack align="center" gap="xs">
+          <Loader size="lg" />
+          <Text fw={600} c="dimmed">
+            {message}
+          </Text>
+        </Stack>
+      </Card>
     </Center>
   );
 }

@@ -11,7 +11,7 @@ import {
 import { useState, useEffect } from 'react';
 import { supabaseClient } from '../../supabase/supabaseClient';
 import { analisesMock, AnaliseSolo } from '../../data/analisesMock';
-import { RecomendacaoCard } from './RecomendacaoCard';
+import RecomendacaoCard from './RecomendacaoCard';
 import { GraficoAnalise } from './GraficoAnalise';
 import { notifications } from '@mantine/notifications';
 
@@ -20,7 +20,7 @@ import { notifications } from '@mantine/notifications';
  * Tela principal de cadastro e visualização da análise de solo.
  * Mostra campos dinâmicos, diagnóstico e gráfico interativo.
  */
-export function CadastroAnaliseSolo() {
+export default function CadastroAnaliseSolo() {
   const [analises, setAnalises] = useState<AnaliseSolo[]>(analisesMock);
   const [analise, setAnalise] = useState<AnaliseSolo>(analisesMock[0]);
   const [nutrientes, setNutrientes] = useState<Record<string, number>>(
@@ -42,22 +42,24 @@ export function CadastroAnaliseSolo() {
           .select('*');
 
         if (error || !data || data.length === 0) {
-          console.warn('Usando dados mockados (sem conexão ao Supabase).');
+          console.warn(
+            'Usando dados mockados (sem conexão ao Supabase ou tabela vazia).',
+          );
           return;
         }
 
         // Converte para o formato usado no app
-        const adaptado = data.map((d: any, i: number) => ({
-          id: d.id || i,
+        const adaptado: AnaliseSolo[] = data.map((d: any, i: number) => ({
+          id: d.id ?? i,
           cultura: d.cultura,
-          variedade: d.variedade,
+          variedade: d.variedade ?? 'Padrão',
           estado: d.estado,
           cidade: d.cidade,
           estagio: d.estagio,
           idade: d.idade,
-          nutrientes: d.nutrientes,
-          faixaIdeal: d.faixa_ideal,
-          observacoes: d.observacoes,
+          nutrientes: d.nutrientes ?? {},
+          faixaIdeal: d.faixa_ideal ?? {},
+          observacoes: d.observacoes ?? '',
         }));
 
         setAnalises(adaptado);
@@ -89,12 +91,18 @@ export function CadastroAnaliseSolo() {
 
   /** 🔸 Atualiza o gráfico e o card de recomendação */
   function atualizarAnalise() {
+    // Se quiser, aqui pode persistir no supabase depois
     notifications.show({
       title: 'Análise atualizada',
       message: 'Os valores foram recalculados com sucesso.',
       color: 'teal',
     });
   }
+
+  const culturas = Array.from(new Set(analises.map((a) => a.cultura)));
+  const variedades = analises
+    .filter((a) => a.cultura === analise.cultura)
+    .map((a) => a.variedade || 'Padrão');
 
   return (
     <Card shadow="sm" radius="md" withBorder p="xl">
@@ -108,24 +116,30 @@ export function CadastroAnaliseSolo() {
           label="Cultura"
           placeholder="Selecione"
           value={analise.cultura}
-          data={[...new Set(analises.map((a) => a.cultura))]}
+          data={culturas}
           onChange={(val) => {
+            if (!val) return;
             const nova = analises.find((a) => a.cultura === val);
             if (nova) {
               setAnalise(nova);
               setNutrientes(nova.nutrientes);
+              setNutrienteSelecionado(null);
             }
           }}
+          searchable
+          nothingFoundMessage="Nenhuma cultura"
         />
 
         <Select
           label="Variedade"
           placeholder="Selecione"
           value={analise.variedade}
-          data={analises
-            .filter((a) => a.cultura === analise.cultura)
-            .map((a) => a.variedade || 'Padrão')}
-          onChange={(val) => setAnalise({ ...analise, variedade: val || '' })}
+          data={variedades.length ? variedades : ['Padrão']}
+          onChange={(val) =>
+            setAnalise({ ...analise, variedade: val || 'Padrão' })
+          }
+          searchable
+          nothingFoundMessage="Sem variedades"
         />
       </Group>
 
@@ -137,8 +151,8 @@ export function CadastroAnaliseSolo() {
             label={chave}
             value={nutrientes[chave]}
             step={0.1}
-            precision={2}
-            onChange={(val) => handleNutrienteChange(chave, val || 0)}
+            decimalScale={2}
+            onChange={(val) => handleNutrienteChange(chave, Number(val) || 0)}
           />
         ))}
       </Group>
@@ -151,13 +165,14 @@ export function CadastroAnaliseSolo() {
       <Divider my="xl" label="Interpretação completa" labelPosition="center" />
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
-        <RecomendacaoCard
-          analise={{ ...analise, nutrientes }}
-          selecionado={nutrienteSelecionado}
-        />
+        {/* ✅ RecomendacaoCard NÃO recebe 'selecionado' no seu arquivo atual */}
+        <RecomendacaoCard analise={{ ...analise, nutrientes }} />
+
+        {/* GraficoAnalise recebe o highlight (opcional) */}
         <GraficoAnalise
           analise={{ ...analise, nutrientes }}
           onSelectNutriente={(n) => setNutrienteSelecionado(n)}
+          selecionado={nutrienteSelecionado ?? undefined}
         />
       </SimpleGrid>
 

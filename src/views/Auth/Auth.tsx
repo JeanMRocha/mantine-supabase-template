@@ -12,17 +12,19 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { IconCircleKey } from '@tabler/icons-react';
-import { supabaseClient } from '@supabase/supabaseClient';
-import { useUser } from '@supabase/loader';
 import { Navigate } from 'react-router-dom';
 
-export function Authentication() {
+// ✅ Imports relativos (sem depender de alias @supabase)
+import { supabaseClient } from '../../supabase/supabaseClient';
+import { useUser } from '../../supabase/loader';
+
+// ✅ export default para funcionar com React.lazy no router
+export default function Authentication() {
   const form = useForm({
     initialValues: {
       email: '',
       password: '',
     },
-
     validate: {
       email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Invalid email'),
     },
@@ -31,7 +33,7 @@ export function Authentication() {
   // redirect if logged in
   const { user } = useUser();
   if (user) {
-    return <Navigate to="/"></Navigate>;
+    return <Navigate to="/" />;
   }
 
   return (
@@ -40,7 +42,7 @@ export function Authentication() {
         <Container size={620} miw={440}>
           <Group align="baseline">
             <Text c="dimmed">
-              <IconCircleKey></IconCircleKey>
+              <IconCircleKey />
             </Text>
             <Title>Login</Title>
           </Group>

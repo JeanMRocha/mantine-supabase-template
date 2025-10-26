@@ -1,14 +1,27 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { ProtectedPath } from '@components/ProtectedPath';
+import { LoaderGlobal } from '@components/loaders';
 
 // 🌿 Lazy loading dos módulos
 const AppLayout = lazy(() => import('@views/Main/AppLayout'));
 const App = lazy(() => import('@views/Main/App'));
 const Dashboard = lazy(() => import('@views/Main/Dashboard'));
+
+// 🔐 Auth
 const Authentication = lazy(() => import('@views/Auth/Auth'));
+const Register = lazy(() => import('@views/Auth/Register'));
+const ForgotPassword = lazy(() => import('@views/Auth/ForgotPassword'));
+
+// 👤 User / ⚙️ Settings
+// Se Profile.tsx exporta *default*, use a linha abaixo:
 const UserProfile = lazy(() => import('@views/User/Profile'));
+// Se ele NÃO exporta default (ex.: `export function UserProfile()`), troque pela debaixo:
+// const UserProfile = lazy(() => import('@views/User/Profile').then(m => ({ default: m.UserProfile })));
+
 const Settings = lazy(() => import('@views/Config/Settings'));
+
+// 🌾 Análise de Solo
 const DashboardAnaliseSolo = lazy(
   () => import('@views/AnaliseSolo/DashboardAnaliseSolo'),
 );
@@ -16,46 +29,41 @@ const CadastroAnaliseSolo = lazy(
   () => import('@views/AnaliseSolo/CadastroAnaliseSolo'),
 );
 
-/**
- * 🌱 Router principal do PerfilSolo
- * Estrutura modular + lazy loading + segurança única (ProtectedPath)
- */
 export const router = createBrowserRouter([
   {
     path: '/',
     element: (
-      <Suspense fallback={<div>Carregando layout...</div>}>
+      <Suspense fallback={<LoaderGlobal message="Carregando layout..." />}>
         <ProtectedPath redirectUrl="/auth">
           <AppLayout />
         </ProtectedPath>
       </Suspense>
     ),
     children: [
-      // Página inicial
       {
         index: true,
         element: (
-          <Suspense fallback={<div>Carregando aplicação...</div>}>
+          <Suspense
+            fallback={<LoaderGlobal message="Carregando aplicação..." />}
+          >
             <App />
           </Suspense>
         ),
       },
-
-      // Dashboard principal
       {
         path: 'dashboard',
         element: (
-          <Suspense fallback={<div>Carregando dashboard...</div>}>
+          <Suspense
+            fallback={<LoaderGlobal message="Carregando dashboard..." />}
+          >
             <Dashboard />
           </Suspense>
         ),
       },
-
-      // Usuário e configurações
       {
         path: 'user',
         element: (
-          <Suspense fallback={<div>Carregando perfil...</div>}>
+          <Suspense fallback={<LoaderGlobal message="Carregando perfil..." />}>
             <UserProfile />
           </Suspense>
         ),
@@ -63,20 +71,22 @@ export const router = createBrowserRouter([
       {
         path: 'config',
         element: (
-          <Suspense fallback={<div>Carregando configurações...</div>}>
+          <Suspense
+            fallback={<LoaderGlobal message="Carregando configurações..." />}
+          >
             <Settings />
           </Suspense>
         ),
       },
-
-      // 🌾 Módulo de Análise de Solo
       {
         path: 'analise-solo',
         children: [
           {
             index: true,
             element: (
-              <Suspense fallback={<div>Carregando análises...</div>}>
+              <Suspense
+                fallback={<LoaderGlobal message="Carregando análises..." />}
+              >
                 <DashboardAnaliseSolo />
               </Suspense>
             ),
@@ -84,7 +94,9 @@ export const router = createBrowserRouter([
           {
             path: 'cadastro',
             element: (
-              <Suspense fallback={<div>Carregando cadastro...</div>}>
+              <Suspense
+                fallback={<LoaderGlobal message="Carregando cadastro..." />}
+              >
                 <CadastroAnaliseSolo />
               </Suspense>
             ),
@@ -93,8 +105,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-
-  /* 🔐 Autenticação pública */
   {
     path: '/auth',
     children: [

@@ -1,17 +1,22 @@
+// vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import dotenv from 'dotenv';
 
-// 🔹 Carrega .env manualmente
+// Carrega .env no lado Node (apenas para logs no start)
 dotenv.config();
 
-console.log('🧩 Ambiente carregado via dotenv:');
+console.log('[dotenv] inject:');
 console.log('  VITE_SUPABASE_URL =', process.env.VITE_SUPABASE_URL);
 console.log(
   '  VITE_SUPABASE_ANON_KEY =',
   process.env.VITE_SUPABASE_ANON_KEY ? 'OK' : 'FALTA',
 );
+
+// ⚠️ Observação: o Vite já injeta automaticamente *no client* todas as variáveis que
+// começam com VITE_. O bloco "define" abaixo é opcional. Se mantiver, ele força
+// a definição mesmo quando o .env não é lido por algum motivo.
 
 export default defineConfig({
   plugins: [react()],
@@ -21,15 +26,9 @@ export default defineConfig({
       '@components': path.resolve(__dirname, 'src/components'),
       '@views': path.resolve(__dirname, 'src/views'),
       '@services': path.resolve(__dirname, 'src/services'),
-      '@supabase': path.resolve(__dirname, 'src/supabase'),
-      '@supabase/supabase-js': path.resolve(
-        __dirname,
-        'node_modules/@supabase/supabase-js/dist/module/index.js',
-      ),
+      //'@supabase': path.resolve(__dirname, 'src/supabase'),
     },
   },
-
-  // 🔧 Injeta variáveis .env no frontend
   define: {
     'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(
       process.env.VITE_SUPABASE_URL,

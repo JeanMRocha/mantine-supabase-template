@@ -32,8 +32,6 @@ export default function Dashboard() {
   const user = useStore($currUser);
 
   return (
-    throw new Error("Erro de teste do loggerService");
-
     <AppShell
       header={{ height: 60 }}
       navbar={{ width: 250, breakpoint: 'sm' }}
@@ -52,7 +50,16 @@ export default function Dashboard() {
             <Text fw={500} fz="md" c="gray.8">
               {user?.user_metadata?.name || user?.email || 'Usuário'}
             </Text>
-
+            <Button
+              variant="light"
+              color="red"
+              onClick={() => {
+                // dispara erro proposital para testar ErrorBoundary + logger
+                throw new Error('Erro de teste disparado via botão');
+              }}
+            >
+              Testar ErrorBoundary
+            </Button>
             <ActionIcon
               variant="light"
               color="green"
