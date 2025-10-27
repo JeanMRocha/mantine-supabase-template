@@ -8,21 +8,17 @@ import {
   ActionIcon,
 } from '@mantine/core';
 import { IconChevronDown } from '@tabler/icons-react';
-import { BarStrip, DEFAULT_PALETTE } from './BarStrip';
+import { BarStrip } from './BarStrip';
 
 type NutrientCardProps = {
-  name?: string; // 'N', 'P', 'K'...
-  unitLabel?: string; // 'mg/dm³', 'cmolc/dm³'...
+  name?: string;
+  unit?: string;
   value?: number;
   onChange?: (v: number) => void;
 
   min?: number;
   max?: number; // escala do nutriente
   ideal?: [number, number]; // faixa ideal em unidades do nutriente
-
-  /** Usar paleta fixa (pH usa DEFAULT_PALETTE) */
-  useFixedPalette?: boolean;
-  fixedPaletteOverride?: string[];
 
   plantHeightAtIdealRatio?: number;
   plantHeightAtEdgesRatio?: number;
@@ -33,19 +29,16 @@ const clamp = (n: number, min: number, max: number) =>
 
 export default function NutrientCard({
   name = 'Nutriente',
-  unitLabel,
+  unit,
   value,
   onChange = () => {},
   min = 0,
   max = 100,
   ideal,
-  useFixedPalette = false,
-  fixedPaletteOverride,
   plantHeightAtIdealRatio = 0.5,
   plantHeightAtEdgesRatio = 0.25,
 }: NutrientCardProps) {
   const val = typeof value === 'number' ? value : min;
-  const unit = (unitLabel ?? '').toUpperCase();
 
   // Faixa ideal default (25%–50% do range)
   const idealSafe: [number, number] = ideal ?? [
@@ -53,7 +46,7 @@ export default function NutrientCard({
     min + (max - min) * 0.5,
   ];
 
-  // Mapeia a faixa ideal (em unidades) para porcentagem 0..1 (usado pela paleta auto)
+  // Mapeia a faixa ideal (em unidades) para porcentagem 0..1
   const idealPct: [number, number] = [
     (idealSafe[0] - min) / (max - min),
     (idealSafe[1] - min) / (max - min),
@@ -110,11 +103,6 @@ export default function NutrientCard({
   const plantBasePx = barH;
   const leftOffset = `calc(${pct(val)}% - ${plantBasePx / 2}px)`;
 
-  // Se usar paleta fixa (ex.: para pH), aplicamos a DEFAULT_PALETTE (ou override)
-  const fixedPalette = useFixedPalette
-    ? (fixedPaletteOverride ?? DEFAULT_PALETTE)
-    : undefined;
-
   return (
     <Card
       withBorder
@@ -167,8 +155,7 @@ export default function NutrientCard({
           barHeight={96}
           gap={8}
           columns={14}
-          fixedPalette={fixedPalette}
-          idealRangePct={!fixedPalette ? idealPct : undefined}
+          idealRangePct={idealPct}
         />
 
         {/* 🌱 Plantinha sobreposta (não altera barras) */}

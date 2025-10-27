@@ -18,30 +18,17 @@ export const DEFAULT_PALETTE = [
 ];
 
 type BarStripProps = {
-  /** Número de colunas (default 14) */
   columns?: number;
-  /** Altura das barras (px) — mantenha igual entre cartões */
   barHeight?: number;
-  /** Espaço entre barras (px) */
   gap?: number;
-  /** Raio das barras */
   radius?: number;
-  /** Quando definido, usa paleta fixa (ex.: pH) */
   fixedPalette?: string[];
-  /**
-   * Quando NÃO usar fixedPalette, gera as cores automaticamente:
-   *  - abaixo do ideal: tons quentes (vermelhos/laranjas)
-   *  - dentro do ideal: verde
-   *  - acima do ideal: tons frios (azuis)
-   * Valores em 0..1 relativos ao range total.
-   */
   idealRangePct?: [number, number];
-  /** Classe/estilo opcional do wrapper */
   className?: string;
   style?: React.CSSProperties;
 };
 
-/** Grade de barras com altura/gap idênticos para todos os cartões */
+/** Grade de barras com uma paleta fixa e uma sobreposição para a faixa ideal. */
 export const BarStrip = forwardRef<HTMLDivElement, BarStripProps>(
   (
     {
@@ -57,46 +44,12 @@ export const BarStrip = forwardRef<HTMLDivElement, BarStripProps>(
     ref,
   ) => {
     const bars = Array.from({ length: columns }, (_, i) => i);
+    const palette = fixedPalette ?? DEFAULT_PALETTE;
 
-    // Paletas auto (somente se NÃO houver fixedPalette)
-    const warm = [
-      '#8b0000',
-      '#a11a16',
-      '#b43a15',
-      '#c35617',
-      '#d0711b',
-      '#de8d24',
-    ];
-    const cool = [
-      '#6aa7e0',
-      '#4f91d8',
-      '#3d7bd0',
-      '#2c66c5',
-      '#2051b3',
-      '#183f97',
-    ];
-    const green = '#7acb86';
-
-    // Função de cor por coluna
     const colorFor = (idx: number) => {
-      if (fixedPalette && fixedPalette[idx]) return fixedPalette[idx];
-      if (!idealRangePct) return '#e3e3e3';
-
-      const x = (idx + 0.5) / columns; // centro da barra
-      const [s, e] = idealRangePct;
-
-      if (x >= s && x <= e) return green;
-
-      if (x < s) {
-        const t = Math.max(0, Math.min(1, (x - 0) / Math.max(1e-6, s - 0)));
-        const k = Math.floor(t * (warm.length - 1));
-        return warm[k];
-      }
-
-      // x > e
-      const t = Math.max(0, Math.min(1, (x - e) / Math.max(1e-6, 1 - e)));
-      const k = Math.floor(t * (cool.length - 1));
-      return cool[k];
+      const t = idx / (columns - 1);
+      const k = Math.floor(t * (palette.length - 1));
+      return palette[k];
     };
 
     return (
@@ -104,6 +57,7 @@ export const BarStrip = forwardRef<HTMLDivElement, BarStripProps>(
         ref={ref}
         className={className}
         style={{
+          position: 'relative', // Necessário para o overlay
           display: 'grid',
           gridTemplateColumns: `repeat(${columns}, 1fr)`,
           gap,
@@ -111,6 +65,7 @@ export const BarStrip = forwardRef<HTMLDivElement, BarStripProps>(
           ...style,
         }}
       >
+        {/* Barras de fundo */}
         {bars.map((i) => (
           <div
             key={i}
@@ -122,6 +77,26 @@ export const BarStrip = forwardRef<HTMLDivElement, BarStripProps>(
             }}
           />
         ))}
+
+        {/* Overlay da Faixa Ideal */}
+        {idealRangePct && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '8px', // Alinha com o padding do container
+              bottom: 0,
+              left: `calc(${idealRangePct[0] * 100}% + ${gap / 2}px)`,
+              width: `calc(${(idealRangePct[1] - idealRangePct[0]) * 100}%)`,
+              background:
+                'linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 100%)',
+              border: '1px solid white',
+              borderRadius: radius,
+              boxSizing: 'border-box',
+              pointerEvents: 'none',
+              boxShadow: '0 0 8px rgba(0,0,0,0.3)',
+            }}
+          />
+        )}
       </div>
     );
   },
