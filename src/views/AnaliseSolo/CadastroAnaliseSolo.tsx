@@ -6,17 +6,24 @@ import {
   Stack,
   SimpleGrid,
   Divider,
+  Select,
 } from '@mantine/core';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { supabaseClient } from '../../supabase/supabaseClient';
 import { analisesMock, AnaliseSolo } from '../../data/analisesMock';
 import PhCard from './PhCard';
 import NutrientCard from './NutrientCard';
+import {
+  getSoilParams,
+  summarizeRanges,
+} from '../../services/soilParamsService';
+import type { RangeMap } from '../../types/soil';
 
 const DEFAULT_UNITS: Record<string, string> = {
+  N: 'mg/dm³',
   P: 'mg/dm³',
-  K: 'mg/dm³',
+  K: 'cmolc/dm³', // ajuste se seu laudo vier em mg/dm³
   Ca: 'cmolc/dm³',
   Mg: 'cmolc/dm³',
   MO: '%',
@@ -25,19 +32,37 @@ const DEFAULT_UNITS: Record<string, string> = {
 export default function CadastroAnaliseSolo() {
   const [analises, setAnalises] = useState<AnaliseSolo[]>(analisesMock);
   const [analise, setAnalise] = useState<AnaliseSolo>(analisesMock[0]);
+
   const [values, setValues] = useState<Record<string, number>>(
     analisesMock[0].nutrientes,
   );
 
-  // quais cards mostrar
+  // faixas ideais dinâmicas (Supabase → mock)
+  const [idealRanges, setIdealRanges] = useState<RangeMap>(
+    analisesMock[0].faixaIdeal,
+  );
+
+  // toggles — agora com N
   const [enabled, setEnabled] = useState<Record<string, boolean>>({
     pH: true,
+    N: true,
     P: true,
     K: true,
-    Ca: true,
-    Mg: true,
-    MO: true,
+    // pode ligar outros depois:
+    // Ca: false, Mg: false, MO: false,
   });
+
+  const culturas = useMemo(
+    () => [...new Set(analises.map((a) => a.cultura))].map((c) => c ?? '—'),
+    [analises],
+  );
+  const variedades = useMemo(
+    () =>
+      analises
+        .filter((a) => a.cultura === analise.cultura)
+        .map((a) => a.variedade || 'Padrão'),
+    [analises, analise.cultura],
+  );
 
   useEffect(() => {
     (async () => {
@@ -60,6 +85,8 @@ export default function CadastroAnaliseSolo() {
           setAnalises(adaptado);
           setAnalise(adaptado[0]);
           setValues(adaptado[0].nutrientes);
+          setIdealRanges(adaptado[0].faixaIdeal);
+
           notifications.show({
             title: 'Dados carregados',
             message: 'Análises reais carregadas do Supabase.',
@@ -67,12 +94,33 @@ export default function CadastroAnaliseSolo() {
           });
         }
       } catch {
-        // segue com mock
+        /* segue mock */
       }
     })();
   }, []);
 
-  const faixa = analise.faixaIdeal;
+  useEffect(() => {
+    (async () => {
+      const q = {
+        cultura: analise.cultura,
+        variedade: analise.variedade,
+        estado: analise.estado,
+        cidade: analise.cidade,
+        extrator: 'mehlich-1',
+        estagio: analise.estagio ?? 'produção',
+      };
+      const params = await getSoilParams(q);
+      if (params?.ideal) {
+        setIdealRanges(params.ideal);
+        notifications.show({
+          title: 'Faixas ideais aplicadas',
+          message: summarizeRanges(params.ideal),
+          color: 'teal',
+        });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analise.cultura, analise.variedade, analise.estado, analise.cidade]);
 
   const toggle = (k: string, v: boolean) =>
     setEnabled((p) => ({ ...p, [k]: v }));
@@ -81,15 +129,44 @@ export default function CadastroAnaliseSolo() {
 
   return (
     <Stack>
-      {/* Paleta de nutrientes (toggle) */}
       <Card withBorder radius="md" p="md">
-        <Group justify="space-between">
+        <Group justify="space-between" align="end">
           <Title order={4} c="green.7">
-            Selecionar parâmetros
+            Parâmetros da cultura
           </Title>
+          <Group gap="md" wrap="wrap">
+            <Select
+              label="Cultura"
+              value={analise.cultura}
+              placeholder="Selecione"
+              data={culturas}
+              onChange={(val) =>
+                setAnalise((prev) => ({
+                  ...prev,
+                  cultura: val ?? prev.cultura,
+                }))
+              }
+              w={220}
+            />
+            <Select
+              label="Variedade"
+              value={analise.variedade || 'Padrão'}
+              placeholder="Selecione"
+              data={variedades}
+              onChange={(val) =>
+                setAnalise((p) => ({
+                  ...p,
+                  variedade: val === 'Padrão' ? null : val || null,
+                }))
+              }
+              w={220}
+            />
+          </Group>
         </Group>
-        <Group mt="xs" gap="md" wrap="wrap">
-          {['pH', 'P', 'K', 'Ca', 'Mg', 'MO'].map((k) => (
+
+        {/* Toggles de exibição */}
+        <Group mt="md" gap="md" wrap="wrap">
+          {['pH', 'N', 'P', 'K'].map((k) => (
             <Switch
               key={k}
               checked={!!enabled[k]}
@@ -103,20 +180,20 @@ export default function CadastroAnaliseSolo() {
 
       <Divider label="Interpretação" labelPosition="center" />
 
-      {/* Grade de cards */}
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
         {enabled['pH'] && (
           <PhCard
             value={values['pH'] ?? 7}
             onChange={(v) => setVal('pH', v)}
-            ideal={(faixa['pH'] as [number, number]) ?? [5.5, 6.5]}
+            ideal={(idealRanges['pH'] as [number, number]) ?? [5.5, 6.5]}
           />
         )}
 
-        {(['P', 'K', 'Ca', 'Mg', 'MO'] as const).map((n) => {
+        {(['N', 'P', 'K'] as const).map((n) => {
           if (!enabled[n]) return null;
           const unit = DEFAULT_UNITS[n] ?? 'mg/dm³';
-          const ideal = (faixa[n] as [number, number]) ?? [0, 0];
+          const ideal = (idealRanges[n] as [number, number]) ?? [0, 0];
+          const scaleMax = Math.max(ideal[1] * 2, ideal[0] * 3, 10); // dá “respiro” visual
 
           return (
             <NutrientCard
@@ -126,18 +203,11 @@ export default function CadastroAnaliseSolo() {
               value={values[n] ?? 0}
               onChange={(v) => setVal(n, v)}
               ideal={ideal}
-              // Escala total = 0 .. 2x do idealMax, para dar “respiro”
-              scale={[0, Math.max(ideal[1] * 2, 1)]}
-              // paleta cinza; podemos substituir por gradiente próprio depois
-              palette={(i, tot) =>
-                i / tot < 0.5
-                  ? 'var(--mantine-color-dark-5)'
-                  : 'var(--mantine-color-dark-4)'
-              }
+              scale={[0, scaleMax]}
               info={{
-                low: `${n} abaixo do ideal — considerar correção.`,
-                high: `${n} elevado — risco de antagonismo.`,
-                ideal: `${n} em faixa adequada.`,
+                low: `${n} abaixo — considerar adubação corretiva.`,
+                ideal: `${n} adequado — manter manejo.`,
+                high: `${n} alto — risco de desequilíbrio/antagonismo.`,
               }}
             />
           );

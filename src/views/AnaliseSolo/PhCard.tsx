@@ -7,15 +7,18 @@ import {
   Stack,
   Tooltip,
 } from '@mantine/core';
-import { IconPlant2 } from '@tabler/icons-react';
 import { useMemo } from 'react';
 
 type PhCardProps = {
   value: number;
   onChange: (v: number) => void;
-  ideal: [number, number]; // ex.: [5.5, 6.5]
+  /** faixa ideal, ex.: [5.5, 6.5] */
+  ideal: [number, number];
+  /** altura das barras (não altera o layout padrão se você não passar) */
+  barsHeight?: number;
 };
 
+/** Paleta 0..14 – NÃO altera a largura/altura das barras */
 const PH_COLORS = [
   '#8b0000',
   '#b00000',
@@ -39,24 +42,27 @@ function pct(val: number, min = 0, max = 14) {
   return ((cl - min) / (max - min)) * 100;
 }
 
-/** 0.1 → 0.5 (tamanho da planta vs altura) conforme proximidade à faixa ideal */
-function growthFactor(
-  value: number,
-  iMin: number,
-  iMax: number,
-  totalMin = 0,
-  totalMax = 14,
-) {
-  const inside = value >= iMin && value <= iMax;
-  const delta = inside
-    ? 0
-    : Math.min(Math.abs(value - iMin), Math.abs(value - iMax));
-  const maxDist = Math.max(iMin - totalMin, totalMax - iMax, 0.0001); // evita div/0
-  const closeness = Math.max(0, Math.min(1, 1 - delta / maxDist)); // 0..1
-  return 0.1 + closeness * 0.4; // 10%..50%
+/**
+ * Crescimento da planta: bordas → 50% do ideal; na faixa → 100% do ideal.
+ * Em termos de altura relativa do card:
+ * - fora da faixa: 25% da altura das barras (metade de 50% ideal)
+ * - dentro da faixa: 50% da altura das barras
+ */
+function growthFactor(value: number, iMin: number, iMax: number) {
+  if (value >= iMin && value <= iMax) return 0.5; // 50% da altura das barras (ideal)
+  // Fora da faixa: desce proporcionalmente até 25%
+  const dist = Math.min(Math.abs(value - iMin), Math.abs(value - iMax));
+  // Escala simples: quanto maior a distância da faixa, menor o fator (limitado a 0.25)
+  const k = Math.max(0.25, 0.5 - dist * 0.1);
+  return k;
 }
 
-export default function PhCard({ value, onChange, ideal }: PhCardProps) {
+export default function PhCard({
+  value,
+  onChange,
+  ideal,
+  barsHeight = 120,
+}: PhCardProps) {
   const [idealMin, idealMax] = ideal;
 
   const status = useMemo<'baixo' | 'ideal' | 'alto'>(() => {
@@ -70,17 +76,19 @@ export default function PhCard({ value, onChange, ideal }: PhCardProps) {
   const statusLabel =
     status === 'ideal' ? 'Ideal' : status === 'baixo' ? 'Ácido' : 'Alcalino';
 
-  const plantH = growthFactor(value, idealMin, idealMax); // 0.1..0.5
-  const plantScale = plantH * 1.0; // ajuste fino
+  // Tamanho final da planta (apenas transform, não afeta as barras)
+  const plantScale = growthFactor(value, idealMin, idealMax);
 
   return (
     <Card withBorder radius="md" p="md">
+      {/* Cabeçalho */}
       <Group justify="space-between" mb="xs">
         <Group gap="xs">
           <Text fw={700}>pH</Text>
-          <Badge variant="light">unid.</Badge>
-          <Badge color={statusColor}>{statusLabel}</Badge>
+          <Badge variant="light">UNID.</Badge>
+          <Badge color={statusColor}>{statusLabel.toUpperCase()}</Badge>
         </Group>
+
         <NumberInput
           value={value}
           onChange={(v) => onChange(Number(v) || 0)}
@@ -92,24 +100,32 @@ export default function PhCard({ value, onChange, ideal }: PhCardProps) {
         />
       </Group>
 
-      <div style={{ position: 'relative', height: 120 }}>
-        {/* blocos verticais (0..14) */}
+      {/* ======= ÁREA VISUAL ======= */}
+      <div style={{ position: 'relative', height: barsHeight }}>
+        {/* 1) Barras de fundo – layout FIXO (não altera dimensões) */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(15, 1fr)`,
+            gridTemplateColumns: 'repeat(15, 1fr)',
             height: '100%',
-            gap: 2,
+            gap: 2, // mantenha o mesmo gap que você já usa
+            // nada de padding/border aqui para não mexer no tamanho
           }}
         >
           {PH_COLORS.map((c, i) => (
-            <Tooltip key={i} label={`pH ${i}`}>
-              <div style={{ background: c, opacity: 0.85, borderRadius: 4 }} />
+            <Tooltip key={i} label={`pH ${i}`} withArrow>
+              <div
+                style={{
+                  background: c,
+                  opacity: 0.85,
+                  borderRadius: 4, // apenas visual, não muda largura/altura efetiva
+                }}
+              />
             </Tooltip>
           ))}
         </div>
 
-        {/* faixa ideal */}
+        {/* 2) Faixa ideal – overlay absoluto (não empurra nada) */}
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           <div
             style={{
@@ -127,33 +143,28 @@ export default function PhCard({ value, onChange, ideal }: PhCardProps) {
           />
         </div>
 
-        {/* 🌱 plantinha como marcador */}
-        <div
+        {/* 3) 🌱 Plantinha – overlay absoluto NA BASE, sem alterar barras */}
+        <img
+          src="/icons/favicon.svg" // sua plantinha do projeto (public/icons)
+          alt="Indicador pH"
+          title={`pH: ${value.toFixed(1)}`}
           style={{
             position: 'absolute',
-            left: `calc(${pct(value)}% - 12px)`,
-            bottom: 4,
+            left: `calc(${pct(value)}% - 64px)`, // centraliza o SVG ~32px
+            bottom: 2, // sempre na base
+            width: 150,
+            height: 150,
             transformOrigin: 'bottom center',
-            transform: `scale(${plantScale})`,
-            transition: 'transform 160ms ease',
-            color:
-              status === 'ideal'
-                ? 'var(--mantine-color-green-5)'
-                : status === 'baixo'
-                  ? 'var(--mantine-color-red-5)'
-                  : 'var(--mantine-color-blue-5)',
-            filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.35))',
-            animation:
-              status === 'ideal'
-                ? 'ps-breathe 1.4s ease-in-out infinite'
-                : 'none',
+            transform: `scale(${plantScale})`, // cresce/encolhe apenas a planta
+            transition: 'transform 260ms ease',
+            filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.35))',
+            // cor por status (aplicada no svg via filter para não tocar nas barras)
+            // se seu svg for flat, dá um leve tinte com drop-shadow; mantemos simples aqui
           }}
-          title={`pH: ${value.toFixed(1)}`}
-        >
-          <IconPlant2 size={24} />
-        </div>
+        />
       </div>
 
+      {/* Mensagens */}
       <Stack gap={4} mt="sm">
         {status === 'baixo' && (
           <Text size="sm" c="red.6">
@@ -176,17 +187,6 @@ export default function PhCard({ value, onChange, ideal }: PhCardProps) {
           Faixa ideal configurada: {idealMin}–{idealMax}.
         </Text>
       </Stack>
-
-      {/* animação "respirar" quando ideal */}
-      <style>
-        {`
-          @keyframes ps-breathe {
-            0% { transform: scale(${plantScale}); }
-            50% { transform: scale(${plantScale * 1.06}); }
-            100% { transform: scale(${plantScale}); }
-          }
-        `}
-      </style>
     </Card>
   );
 }

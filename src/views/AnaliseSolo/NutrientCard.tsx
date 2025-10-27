@@ -1,202 +1,214 @@
+import React, { useMemo, useRef, useState, useLayoutEffect } from 'react';
 import {
   Card,
   Group,
   Text,
   NumberInput,
   Badge,
-  Stack,
-  Tooltip,
+  ActionIcon,
 } from '@mantine/core';
-import { IconPlant2 } from '@tabler/icons-react';
-import { useMemo } from 'react';
+import { IconChevronDown } from '@tabler/icons-react';
+import { BarStrip, DEFAULT_PALETTE } from './BarStrip';
 
 type NutrientCardProps = {
-  name: string; // ex: "K"
-  unit?: string; // ex: "mg/dm³"
-  value: number; // valor do laudo
-  onChange: (v: number) => void;
-  ideal: [number, number]; // faixa ideal
-  scale?: [number, number]; // escala total (default 0..2*idealMax)
-  blocks?: number; // quantidade de blocos (default 20)
-  palette?: (index: number, total: number) => string; // cor por bloco
-  info?: { low?: string; high?: string; ideal?: string };
+  name?: string; // 'N', 'P', 'K'...
+  unitLabel?: string; // 'mg/dm³', 'cmolc/dm³'...
+  value?: number;
+  onChange?: (v: number) => void;
+
+  min?: number;
+  max?: number; // escala do nutriente
+  ideal?: [number, number]; // faixa ideal em unidades do nutriente
+
+  /** Usar paleta fixa (pH usa DEFAULT_PALETTE) */
+  useFixedPalette?: boolean;
+  fixedPaletteOverride?: string[];
+
+  plantHeightAtIdealRatio?: number;
+  plantHeightAtEdgesRatio?: number;
 };
 
-function clamp(v: number, a: number, b: number) {
-  return Math.max(a, Math.min(b, v));
-}
-function pct(val: number, min: number, max: number) {
-  return ((clamp(val, min, max) - min) / (max - min)) * 100;
-}
-
-/** 0.1 → 0.5 (crescimento da planta) */
-function growthFactor(
-  value: number,
-  iMin: number,
-  iMax: number,
-  totalMin: number,
-  totalMax: number,
-) {
-  const inside = value >= iMin && value <= iMax;
-  const delta = inside
-    ? 0
-    : Math.min(Math.abs(value - iMin), Math.abs(value - iMax));
-  const maxDist = Math.max(iMin - totalMin, totalMax - iMax, 0.0001);
-  const closeness = clamp(1 - delta / maxDist, 0, 1);
-  return 0.1 + closeness * 0.4;
-}
+const clamp = (n: number, min: number, max: number) =>
+  Math.min(Math.max(n, min), max);
 
 export default function NutrientCard({
-  name,
-  unit = 'mg/dm³',
+  name = 'Nutriente',
+  unitLabel,
   value,
-  onChange,
+  onChange = () => {},
+  min = 0,
+  max = 100,
   ideal,
-  scale,
-  blocks = 20,
-  palette,
-  info,
+  useFixedPalette = false,
+  fixedPaletteOverride,
+  plantHeightAtIdealRatio = 0.5,
+  plantHeightAtEdgesRatio = 0.25,
 }: NutrientCardProps) {
-  const [iMin, iMax] = ideal;
-  const totalMin = scale?.[0] ?? 0;
-  const totalMax = scale?.[1] ?? Math.max(iMax * 2, 1);
+  const val = typeof value === 'number' ? value : min;
+  const unit = (unitLabel ?? '').toUpperCase();
 
-  const status = useMemo<'baixo' | 'ideal' | 'alto'>(() => {
-    if (value < iMin) return 'baixo';
-    if (value > iMax) return 'alto';
-    return 'ideal';
-  }, [value, iMin, iMax]);
+  // Faixa ideal default (25%–50% do range)
+  const idealSafe: [number, number] = ideal ?? [
+    min + (max - min) * 0.25,
+    min + (max - min) * 0.5,
+  ];
 
+  // Mapeia a faixa ideal (em unidades) para porcentagem 0..1 (usado pela paleta auto)
+  const idealPct: [number, number] = [
+    (idealSafe[0] - min) / (max - min),
+    (idealSafe[1] - min) / (max - min),
+  ];
+
+  // Status/mensagem
+  const status =
+    val < idealSafe[0] ? 'BAIXO' : val > idealSafe[1] ? 'ALTO' : 'IDEAL';
   const statusColor =
-    status === 'ideal' ? 'green' : status === 'baixo' ? 'red' : 'blue';
-  const statusLabel =
-    status === 'ideal' ? 'Ideal' : status === 'baixo' ? 'Baixo' : 'Alto';
+    val < idealSafe[0] ? 'red' : val > idealSafe[1] ? 'violet' : 'green';
+  const message =
+    status === 'IDEAL'
+      ? `${name} adequado — manter manejo.`
+      : status === 'BAIXO'
+        ? `${name} abaixo — considerar adubação corretiva.`
+        : `${name} acima — reduzir dose/ajustar fonte/aplicação.`;
 
-  const blockColors = (idx: number, tot: number) =>
-    palette ? palette(idx, tot) : 'var(--mantine-color-dark-5)';
+  // % horizontal (0..100) no range total
+  const pct = (v: number) => ((clamp(v, min, max) - min) / (max - min)) * 100;
 
-  const plantH = growthFactor(value, iMin, iMax, totalMin, totalMax);
-  const plantScale = plantH * 1.0;
+  // Distância relativa ao ideal (0=centro; 1=longe)
+  const distanceToIdeal = useMemo(() => {
+    const [iMin, iMax] = idealSafe;
+    if (val >= iMin && val <= iMax) return 0;
+    const d = val < iMin ? iMin - val : val - iMax;
+    return clamp(d / ((max - min) / 2), 0, 1);
+  }, [val, idealSafe, min, max]);
+
+  // Escala da planta
+  const plantScale =
+    plantHeightAtEdgesRatio +
+    (plantHeightAtIdealRatio - plantHeightAtEdgesRatio) * (1 - distanceToIdeal);
+
+  // Medição da altura das barras (para dimensionar a planta sem tocar nas barras)
+  const barsRef = useRef<HTMLDivElement | null>(null);
+  const [barH, setBarH] = useState(96);
+
+  useLayoutEffect(() => {
+    const el = barsRef.current;
+    if (!el) return;
+    const measure = () => {
+      const firstBar = el.querySelector('div');
+      const h = firstBar
+        ? Number(getComputedStyle(firstBar).height.replace('px', ''))
+        : 96;
+      setBarH(h || 96);
+    };
+    measure();
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const plantBasePx = barH;
+  const leftOffset = `calc(${pct(val)}% - ${plantBasePx / 2}px)`;
+
+  // Se usar paleta fixa (ex.: para pH), aplicamos a DEFAULT_PALETTE (ou override)
+  const fixedPalette = useFixedPalette
+    ? (fixedPaletteOverride ?? DEFAULT_PALETTE)
+    : undefined;
 
   return (
-    <Card withBorder radius="md" p="md">
-      <Group justify="space-between" mb="xs">
+    <Card
+      withBorder
+      shadow="sm"
+      radius="md"
+      p="md"
+      style={{ position: 'relative', overflow: 'hidden' }}
+    >
+      {/* Cabeçalho */}
+      <Group justify="space-between" mb="sm">
         <Group gap="xs">
           <Text fw={700}>{name}</Text>
-          <Badge variant="light">{unit}</Badge>
-          <Badge color={statusColor}>{statusLabel}</Badge>
+          {unit && (
+            <Badge variant="light" color="gray">
+              {unit}
+            </Badge>
+          )}
+          <Badge variant="filled" color={statusColor}>
+            {status}
+          </Badge>
         </Group>
-        <NumberInput
-          value={value}
-          onChange={(v) => onChange(Number(v) || 0)}
-          step={0.1}
-          precision={2}
-          min={0}
-          maw={140}
-        />
+
+        <Group gap="xs">
+          <NumberInput
+            value={val}
+            onChange={(v) => onChange(Number(v) || 0)}
+            min={min}
+            max={max}
+            step={(max - min) / 100}
+            decimalScale={2}
+            clampBehavior="strict"
+            size="sm"
+            w={110}
+          />
+          <ActionIcon
+            variant="light"
+            color="gray"
+            aria-label="Mais opções"
+            title="Mais opções"
+          >
+            <IconChevronDown size={16} />
+          </ActionIcon>
+        </Group>
       </Group>
 
-      <div style={{ position: 'relative', height: 120 }}>
-        {/* blocos verticais */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${blocks}, 1fr)`,
-            height: '100%',
-            gap: 2,
-          }}
-        >
-          {Array.from({ length: blocks }).map((_, i) => (
-            <Tooltip
-              key={i}
-              label={`${name} – ${(totalMin + ((i + 1) / blocks) * (totalMax - totalMin)).toFixed(2)} ${unit}`}
-            >
-              <div
-                style={{
-                  background: blockColors(i, blocks),
-                  opacity: 0.5,
-                  borderRadius: 4,
-                }}
-              />
-            </Tooltip>
-          ))}
-        </div>
+      {/* Barras — altura/gap FIXOS para todos os cartões */}
+      <div style={{ position: 'relative', width: '100%' }}>
+        <BarStrip
+          ref={barsRef}
+          barHeight={96}
+          gap={8}
+          columns={14}
+          fixedPalette={fixedPalette}
+          idealRangePct={!fixedPalette ? idealPct : undefined}
+        />
 
-        {/* faixa ideal */}
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: `calc(${pct(iMin, totalMin, totalMax)}%)`,
-              width: `calc(${pct(iMax, totalMin, totalMax) - pct(iMin, totalMin, totalMax)}%)`,
-              background:
-                'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(16,185,129,0.16) 100%)',
-              border: '1px dashed var(--mantine-color-green-6)',
-              borderRadius: 6,
-            }}
-          />
-        </div>
-
-        {/* 🌱 plantinha marcador */}
-        <div
+        {/* 🌱 Plantinha sobreposta (não altera barras) */}
+        <img
+          src="/icons/favicon.svg"
+          alt={`${name} indicador`}
+          title={`${name}: ${val}`}
           style={{
             position: 'absolute',
-            left: `calc(${pct(value, totalMin, totalMax)}% - 12px)`,
+            left: leftOffset,
             bottom: 4,
+            width: plantBasePx,
+            height: plantBasePx,
             transformOrigin: 'bottom center',
             transform: `scale(${plantScale})`,
-            transition: 'transform 160ms ease',
-            color:
-              status === 'ideal'
-                ? 'var(--mantine-color-green-5)'
-                : status === 'baixo'
-                  ? 'var(--mantine-color-red-5)'
-                  : 'var(--mantine-color-blue-5)',
-            filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.35))',
-            animation:
-              status === 'ideal'
-                ? 'nut-breathe 1.4s ease-in-out infinite'
-                : 'none',
+            transition: 'transform 260ms ease, left 180ms ease',
+            filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.35))',
+            pointerEvents: 'none',
+            userSelect: 'none',
           }}
-          title={`${name}: ${value} ${unit}`}
-        >
-          <IconPlant2 size={24} />
-        </div>
+        />
       </div>
 
-      <Stack gap={4} mt="sm">
-        {status === 'baixo' && (
-          <Text size="sm" c="red.6">
-            {info?.low ?? `${name} abaixo do ideal — considerar correção.`}
-          </Text>
-        )}
-        {status === 'alto' && (
-          <Text size="sm" c="blue.6">
-            {info?.high ?? `${name} elevado — risco de antagonismo.`}
-          </Text>
-        )}
-        {status === 'ideal' && (
-          <Text size="sm" c="green.6">
-            {info?.ideal ?? `${name} em faixa adequada.`}
-          </Text>
-        )}
-        <Text size="xs" c="dimmed">
-          Faixa ideal: {iMin}–{iMax} {unit} | Escala: {totalMin}–{totalMax}{' '}
-          {unit}
-        </Text>
-      </Stack>
-
-      <style>
-        {`
-          @keyframes nut-breathe {
-            0% { transform: scale(${plantScale}); }
-            50% { transform: scale(${plantScale * 1.06}); }
-            100% { transform: scale(${plantScale}); }
-          }
-        `}
-      </style>
+      {/* Mensagens */}
+      <Text
+        mt="sm"
+        size="sm"
+        c={
+          status === 'IDEAL'
+            ? 'green.6'
+            : status === 'BAIXO'
+              ? 'red.6'
+              : 'violet.6'
+        }
+      >
+        {message}
+      </Text>
+      <Text mt={4} size="xs" c="dimmed">
+        Faixa ideal configurada: {idealSafe[0]}–{idealSafe[1]} {unit}.
+      </Text>
     </Card>
   );
 }
